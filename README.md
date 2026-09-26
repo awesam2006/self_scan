@@ -50,6 +50,7 @@ The project is designed for authorized testing environments such as vulnerable v
 * Modular service enumeration architecture
 * `--help` and `--version` support
 * Execution logging
+* Scan timing for RustScan, Nmap, automated enumeration, and total assessment
 
 ## Requirements
 
@@ -156,17 +157,25 @@ self_scan/
 │   ├── smtp.sh
 │   ├── dns.sh
 │   └── http.sh
-├── reports/
-│   ├── scan.txt
-│   ├── findings.txt
-│   ├── summary.txt
-│   └── report.html
 ├── targets.example.txt
 ├── README.md
 └── .gitignore
 ```
 
-For multiple-target scans, each target receives a separate report directory:
+Generated reports and logs are stored in the `reports/` directory and are excluded from version control.
+
+For a single-target scan:
+
+```text
+reports/
+├── scan.txt
+├── findings.txt
+├── summary.txt
+├── report.html
+└── selfscan.log
+```
+
+For multiple-target scans, each target receives its own report directory:
 
 ```text
 reports/
@@ -174,14 +183,17 @@ reports/
 │   ├── scan.txt
 │   ├── findings.txt
 │   ├── summary.txt
-│   └── report.html
+│   ├── report.html
+│   └── selfscan.log
 ├── 192.168.34.130/
 │   ├── scan.txt
 │   ├── findings.txt
 │   ├── summary.txt
-│   └── report.html
+│   ├── report.html
+│   └── selfscan.log
 └── ...
 ```
+
 
 ## 4.1 Reconnaissance
 
@@ -227,6 +239,12 @@ Example detected information:
 80/tcp    http      Apache httpd 2.2.8
 139/tcp   netbios   Samba
 ```
+SelfScan also records the execution time for each major scanning stage:
+
+* RustScan duration
+* Nmap service/version detection duration
+* Automated enumeration duration
+* Total assessment duration
 
 ## 4.3 Automated Enumeration
 
@@ -336,6 +354,7 @@ Contains the complete scan overview:
 * Open TCP ports
 * Detected services
 * Findings
+* Timing information
 
 ### `findings.txt`
 
@@ -359,6 +378,7 @@ Contains a condensed assessment summary including:
 * Total findings
 * Findings grouped by risk
 * Evidence and recommendations
+* Timing information
 
 ### `report.html`
 
@@ -367,12 +387,11 @@ Contains a browser-viewable HTML version of the generated assessment information
 * Scan summary
 * Security findings
 * Detailed scan information
-
-For multiple-target scans, each target receives its own set of reports.
+* Timing information
 
 ### `selfscan.log`
 
-Contains the execution log for the scan, including scanner output, module execution, errors, and status messages.
+Contains the execution log for the scan, including scanner output, module execution, errors, status messages, and timing information.
 
 ## Error Handling
 
@@ -421,6 +440,7 @@ reports/scan.txt
 reports/findings.txt
 reports/summary.txt
 reports/report.html
+reports/selfscan.log
 ```
 
 Example generated reports for multiple targets:
@@ -447,4 +467,4 @@ Only scan systems that you own or have explicit permission to test.
 
 ## Project Goal
 
-The goal of SelfScan is to demonstrate practical Bash scripting, automation, network reconnaissance, service enumeration, security checks, decision logic, file handling, error handling, report generation, and modular software design.
+The goal of SelfScan is to demonstrate practical Bash scripting, automation, network reconnaissance, service enumeration, security checks, decision logic, file handling, error handling, report generation, execution logging, performance measurement, and modular software design.

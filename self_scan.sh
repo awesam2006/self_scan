@@ -10,6 +10,12 @@ FINDINGS_FILE="$REPORT_DIR/findings.txt"
 SCAN_REPORT="$REPORT_DIR/scan.txt"
 SUMMARY_REPORT="$REPORT_DIR/summary.txt"
 LOG_FILE="$REPORT_DIR/selfscan.log"
+# Timing information
+TOTAL_START=0
+RUSTSCAN_TIME=0
+NMAP_TIME=0
+ENUMERATION_TIME=0
+TOTAL_SCAN_TIME=0
 # ==========================================================
 #			Functions
 # ==========================================================
@@ -270,6 +276,8 @@ fi
 # Initializes execution logging
 mkdir -p "$REPORT_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
+TOTAL_START=$SECONDS
+
 # ==========================================================
 #             REQUIREMENT 4.1 - Reconnaissance
 # ==========================================================
@@ -423,7 +431,11 @@ get_network_info() {
 run_rustscan() {
     echo "[*] Starting RustScan..."
 
+    RUSTSCAN_START=$SECONDS
+
     RUSTSCAN_OUTPUT=$(rustscan -a "$TARGET_IP" --ulimit 5000 -g 2>&1)
+
+    RUSTSCAN_TIME=$((SECONDS - RUSTSCAN_START))
 
     if [[ $? -ne 0 ]]; then
         echo "[-] RustScan scan failed"
@@ -431,9 +443,10 @@ run_rustscan() {
     fi
 
     echo "[+] RustScan scan completed"
+    echo "[*] RustScan time: $(format_time "$RUSTSCAN_TIME")"
+
     return 0
 }
-
 # Extracts open TCP ports discovered by RustScan
 parse_rustscan_ports() {
     OPEN_PORTS=$(echo "$RUSTSCAN_OUTPUT" |
@@ -459,11 +472,11 @@ count_open_ports() {
 run_nmap_service_scan() {
     echo "[*] Starting Nmap service/version detection..."
 
-    SCAN_START=$SECONDS
+    NMAP_START=$SECONDS
 
     NMAP_OUTPUT=$(nmap -n -Pn -sV --version-light -p "$OPEN_PORTS" "$TARGET_IP" 2>&1)
 
-    SCAN_TIME=$((SECONDS - SCAN_START))
+    NMAP_TIME=$((SECONDS - NMAP_START))
 
     if [[ $? -ne 0 ]]; then
         echo "[-] Nmap service scan failed"
@@ -471,10 +484,11 @@ run_nmap_service_scan() {
     fi
 
     echo "[+] Nmap service scan completed"
-    echo "[*] Scan time: $(format_time "$SCAN_TIME")"
+    echo "[*] Nmap service scan time: $(format_time "$NMAP_TIME")"
 
     return 0
 }
+
 # Extracts detected services and full versions from Nmap results
 parse_services() {
     echo
@@ -503,6 +517,8 @@ run_service_modules() {
     echo "=========================================================="
     echo "       REQUIREMENT 4.3 - Automated Enumeration"
     echo "=========================================================="
+
+    ENUMERATION_START=$SECONDS
 
     while IFS='|' read -r PORT SERVICE; do
 
@@ -552,7 +568,13 @@ run_service_modules() {
             print $1 "|" $3
         }'
     )
+
+    ENUMERATION_TIME=$((SECONDS - ENUMERATION_START))
+
+    echo "[+] Automated enumeration completed"
+    echo "[*] Automated enumeration time: $(format_time "$ENUMERATION_TIME")"
 }
+
 # ==========================================================
 #             REQUIREMENT 4.4 - Security Checks
 # ==========================================================
@@ -646,7 +668,12 @@ generate_scan_report() {
         echo "Target Hostname: ${TARGET_HOSTNAME:-Not resolved}"
         echo "Scan Date: $SCAN_DATE"
         echo
-
+	echo "Timing Information:"
+	echo "    RustScan:              $(format_time "$RUSTSCAN_TIME")"
+	echo "    Nmap service scan:     $(format_time "$NMAP_TIME")"
+	echo "    Automated enumeration: $(format_time "$ENUMERATION_TIME")"
+	echo "    Total assessment:      $(format_time "$TOTAL_SCAN_TIME")"
+	echo
         echo "Basic Network Information:"
         echo "    Interface: ${INTERFACE:-Not available}"
         echo "    Source IP: ${SOURCE_IP:-Not available}"
@@ -714,8 +741,13 @@ generate_summary_report() {
         echo "Target IP: $TARGET_IP"
         echo "Target Hostname: ${TARGET_HOSTNAME:-Not resolved}"
         echo "Scan Date: $SCAN_DATE"
-        echo
-
+	echo
+	echo "Timing Information:"
+	echo "    RustScan:              $(format_time "$RUSTSCAN_TIME")"
+	echo "    Nmap service scan:     $(format_time "$NMAP_TIME")"
+	echo "    Automated enumeration: $(format_time "$ENUMERATION_TIME")"
+	echo "    Total assessment:      $(format_time "$TOTAL_SCAN_TIME")"
+	echo
         echo "Open TCP Ports:"
         echo "    $OPEN_PORTS"
         echo "    Total: $OPEN_PORT_COUNT"
@@ -986,10 +1018,18 @@ generate_summary_report || exit 1
 # ==========================================================
 
 generate_html_report || exit 1 
+
+TOTAL_SCAN_TIME=$((SECONDS - TOTAL_START))
+
 echo
 echo "=========================================================="
 echo "                 Scan Completed"
 echo "=========================================================="
+echo "[+] RustScan time:          $(format_time "$RUSTSCAN_TIME")"
+echo "[+] Nmap service scan time: $(format_time "$NMAP_TIME")"
+echo "[+] Enumeration time:       $(format_time "$ENUMERATION_TIME")"
+echo "[+] Total assessment time:  $(format_time "$TOTAL_SCAN_TIME")"
+echo
 echo "[+] Findings report: $FINDINGS_FILE"
 echo "[+] Scan report:     $SCAN_REPORT"
 echo "[+] Summary report:  $SUMMARY_REPORT"
