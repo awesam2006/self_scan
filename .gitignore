@@ -1,13 +1,14 @@
-# Generated reports
-reports/*.txt
+# Generated reports and logs
+reports/
+
+# Local target list
+targets.txt
 
 # Temporary files
 *.tmp
-*.log
 *.out
 
-# Editor / OS files
+# Editor files
 *.swp
 *.swo
 *~
-.DS_Store

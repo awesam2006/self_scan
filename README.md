@@ -11,16 +11,16 @@ SelfScan was developed as a modular Bash security assessment tool.
 The scanner follows this workflow:
 
 ```text
-Target
-  ↓
+Target(s)
+   ↓
 4.1 Reconnaissance
-  ↓
+   ↓
 4.2 Port & Service Enumeration
-  ↓
+   ↓
 4.3 Automated Enumeration
-  ↓
+   ↓
 4.4 Security Checks
-  ↓
+   ↓
 4.5 Report Generation
 ```
 
@@ -28,6 +28,9 @@ The project is designed for authorized testing environments such as vulnerable v
 
 ## Features
 
+* Single-target scanning
+* Multiple-target scanning from the command line
+* Multiple-target scanning from a target list file
 * Target reachability detection
 * IPv4 target validation
 * Target IP and hostname identification
@@ -40,10 +43,13 @@ The project is designed for authorized testing environments such as vulnerable v
 * Evidence-based security findings
 * Risk classification and explanations
 * Recommendations for detected findings
-* Multiple structured reports
+* Text-based security reports
+* HTML security report generation
+* Separate reports for multiple targets
 * Error handling for invalid and unreachable targets
 * Modular service enumeration architecture
 * `--help` and `--version` support
+* Execution logging
 
 ## Requirements
 
@@ -84,7 +90,7 @@ nmap --version
 
 ## Usage
 
-Scan a target:
+### Scan a single target
 
 ```bash
 ./self_scan.sh <target>
@@ -96,13 +102,43 @@ Example:
 ./self_scan.sh 192.168.34.129
 ```
 
-Display help:
+### Scan multiple targets from the terminal
+
+```bash
+./self_scan.sh <target1> <target2> <target3>
+```
+
+Example:
+
+```bash
+./self_scan.sh 192.168.34.129 192.168.34.130 192.168.34.131
+```
+
+### Scan multiple targets from a file
+
+```bash
+./self_scan.sh targets.txt
+```
+
+The target file contains one IP address or hostname per line.
+
+Example:
+
+```text
+192.168.34.129
+192.168.34.130
+192.168.34.131
+```
+
+Empty lines and lines beginning with `#` are ignored.
+
+### Display help
 
 ```bash
 ./self_scan.sh --help
 ```
 
-Display the version:
+### Display the version
 
 ```bash
 ./self_scan.sh --version
@@ -123,9 +159,28 @@ self_scan/
 ├── reports/
 │   ├── scan.txt
 │   ├── findings.txt
-│   └── summary.txt
+│   ├── summary.txt
+│   └── report.html
+├── targets.example.txt
 ├── README.md
 └── .gitignore
+```
+
+For multiple-target scans, each target receives a separate report directory:
+
+```text
+reports/
+├── 192.168.34.129/
+│   ├── scan.txt
+│   ├── findings.txt
+│   ├── summary.txt
+│   └── report.html
+├── 192.168.34.130/
+│   ├── scan.txt
+│   ├── findings.txt
+│   ├── summary.txt
+│   └── report.html
+└── ...
 ```
 
 ## 4.1 Reconnaissance
@@ -269,7 +324,7 @@ The risk level is assigned based on the observed security condition; it is not a
 
 ## 4.5 Report Generation
 
-After the assessment is completed, SelfScan generates three reports in the `reports/` directory.
+After the assessment is completed, SelfScan generates structured reports for the scanned target.
 
 ### `scan.txt`
 
@@ -305,6 +360,20 @@ Contains a condensed assessment summary including:
 * Findings grouped by risk
 * Evidence and recommendations
 
+### `report.html`
+
+Contains a browser-viewable HTML version of the generated assessment information, including:
+
+* Scan summary
+* Security findings
+* Detailed scan information
+
+For multiple-target scans, each target receives its own set of reports.
+
+### `selfscan.log`
+
+Contains the execution log for the scan, including scanner output, module execution, errors, and status messages.
+
 ## Error Handling
 
 SelfScan handles common execution problems such as:
@@ -327,18 +396,47 @@ VMware virtual machine
 Host-only Adapter network
 ```
 
-Example command:
+Example single-target command:
 
 ```bash
 ./self_scan.sh 192.168.34.129
 ```
 
-Example generated reports:
+Example multiple-target command:
+
+```bash
+./self_scan.sh 192.168.34.129 192.168.34.130 192.168.34.131
+```
+
+Example target-list command:
+
+```bash
+./self_scan.sh targets.txt
+```
+
+Example generated reports for a single target:
 
 ```text
 reports/scan.txt
 reports/findings.txt
 reports/summary.txt
+reports/report.html
+```
+
+Example generated reports for multiple targets:
+
+```text
+reports/
+├── 192.168.34.129/
+│   ├── scan.txt
+│   ├── findings.txt
+│   ├── summary.txt
+│   └── report.html
+└── 192.168.34.130/
+    ├── scan.txt
+    ├── findings.txt
+    ├── summary.txt
+    └── report.html
 ```
 
 ## Security and Authorization
@@ -349,4 +447,4 @@ Only scan systems that you own or have explicit permission to test.
 
 ## Project Goal
 
-The goal of SelfScan is to demonstrate practical Bash scripting, automation, network reconnaissance, service enumeration, security checks, decision logic, file handling, error handling, and modular software design.
+The goal of SelfScan is to demonstrate practical Bash scripting, automation, network reconnaissance, service enumeration, security checks, decision logic, file handling, error handling, report generation, and modular software design.

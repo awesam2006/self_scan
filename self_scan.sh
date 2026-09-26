@@ -5,17 +5,21 @@
 # ==================================================================
 
 VERSION="1.0"
-REPORT_DIR="reports"
+REPORT_DIR="${SELFSCAN_REPORT_DIR:-reports}"
 FINDINGS_FILE="$REPORT_DIR/findings.txt"
 SCAN_REPORT="$REPORT_DIR/scan.txt"
 SUMMARY_REPORT="$REPORT_DIR/summary.txt"
+LOG_FILE="$REPORT_DIR/selfscan.log"
 # ==========================================================
 #			Functions
 # ==========================================================
 
 # Displays the usage message when no target is provided
 usage() {
-    echo "Usage: $0 <target>"
+    echo "Usage:"
+    echo "  $0 <target>"
+    echo "  $0 <target1> <target2> ..."
+    echo "  $0 <targets.txt>"
 }
 
 # ==========================================================
@@ -24,19 +28,43 @@ usage() {
 
 # Displays detailed help and usage information
 show_help() {
-    echo "SelfScan - Bash Security Assessment Tool"
-    echo
-    echo "Usage:"
-    echo "  $0 <target>"
-    echo "  $0 targets.txt"
-    echo "  $0 --help"
-    echo "  $0 --version"
-    echo
-    echo "Examples:"
-    echo "  $0 192.168.1.10"
-    echo "  $0 targets.txt"
-}
+    cat << EOF
+Usage:
+  $0 <target>
+  $0 <target1> <target2> ...
+  $0 <targets.txt>
 
+Description:
+  Performs an automated security assessment of one or more targets.
+
+Target modes:
+  <target>       Scan a single IP address or hostname.
+  <target1> ...  Scan multiple targets supplied directly in the terminal.
+  <targets.txt>  Scan multiple targets listed in a file, one per line.
+
+Options:
+  -h, --help     Show this help message.
+  -v, --version  Show program version.
+
+Examples:
+  $0 192.168.34.129
+  $0 192.168.34.129 192.168.34.130 192.168.34.131
+  $0 targets.txt
+
+Reports:
+  Single target:
+    reports/scan.txt
+    reports/findings.txt
+    reports/summary.txt
+    reports/report.html
+
+  Multiple targets:
+    reports/<target>/scan.txt
+    reports/<target>/findings.txt
+    reports/<target>/summary.txt
+    reports/<target>/report.html
+EOF
+}
 # Displays the current tool version
 show_version() {
     echo "SelfScan Version $VERSION"
@@ -130,8 +158,105 @@ case "$1" in
         ;;
 esac
 
-TARGET="$1"
+# ==========================================================
+#                  Multiple Target Support
+# ==========================================================
 
+# Multiple targets can be supplied either:
+#   ./self_scan.sh targets.txt
+#   ./self_scan.sh TARGET1 TARGET2 TARGET3
+
+if [[ $# -gt 1 ]] || [[ -f "$1" ]]; then
+
+    OVERALL_RC=0
+    TARGET_COUNT=0
+
+    # ------------------------------------------------------
+    # Build target list
+    # ------------------------------------------------------
+
+    if [[ -f "$1" ]]; then
+        TARGET_LIST="$1"
+
+        echo "[+] Multiple-target mode enabled"
+        echo "[+] Target list: $TARGET_LIST"
+        echo
+
+        TARGETS=()
+
+        while IFS= read -r TARGET_LINE || [[ -n "$TARGET_LINE" ]]; do
+
+            # Remove comments
+            TARGET_LINE="${TARGET_LINE%%#*}"
+
+            # Trim leading/trailing whitespace
+            TARGET_LINE="$(printf '%s' "$TARGET_LINE" |
+                sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+
+            # Skip empty lines
+            [[ -z "$TARGET_LINE" ]] && continue
+
+            TARGETS+=("$TARGET_LINE")
+
+        done < "$TARGET_LIST"
+
+    else
+        echo "[+] Multiple-target mode enabled"
+        echo "[+] Targets supplied from command line"
+        echo
+
+        TARGETS=("$@")
+    fi
+
+    # ------------------------------------------------------
+    # Scan each target separately
+    # ------------------------------------------------------
+
+    for TARGET_ITEM in "${TARGETS[@]}"; do
+
+        ((TARGET_COUNT++))
+
+        # Make a filesystem-safe directory name
+        SAFE_TARGET_NAME="$(printf '%s' "$TARGET_ITEM" |
+            sed 's/[^A-Za-z0-9._-]/_/g')"
+
+        echo "=========================================="
+        echo "       Target $TARGET_COUNT: $TARGET_ITEM"
+        echo "=========================================="
+
+        SELFSCAN_REPORT_DIR="$REPORT_DIR/$SAFE_TARGET_NAME" \
+            "$0" "$TARGET_ITEM"
+
+        TARGET_RC=$?
+
+        if [[ $TARGET_RC -ne 0 ]]; then
+            OVERALL_RC=1
+            echo "[!] Target failed: $TARGET_ITEM"
+        else
+            echo "[+] Target completed: $TARGET_ITEM"
+        fi
+
+        echo
+    done
+
+    # ------------------------------------------------------
+    # Validate target count
+    # ------------------------------------------------------
+
+    if [[ $TARGET_COUNT -eq 0 ]]; then
+        echo "[!] No valid targets were supplied"
+        exit 1
+    fi
+
+    echo "=========================================="
+    echo "[+] Multiple-target scan completed"
+    echo "[+] Targets processed: $TARGET_COUNT"
+    echo "=========================================="
+
+    exit "$OVERALL_RC"
+fi
+
+TARGET="$1"
 SCAN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ==========================================================
@@ -142,7 +267,9 @@ SCAN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 if ! check_dependencies; then
     exit 1
 fi
-
+# Initializes execution logging
+mkdir -p "$REPORT_DIR"
+exec > >(tee -a "$LOG_FILE") 2>&1
 # ==========================================================
 #             REQUIREMENT 4.1 - Reconnaissance
 # ==========================================================
@@ -686,6 +813,125 @@ generate_summary_report() {
 }
 
 # ==========================================================
+#                BONUS #2 - HTML Report
+# ==========================================================
+
+# Escapes special HTML characters in report files
+html_escape_file() {
+    sed \
+        -e 's/&/\&amp;/g' \
+        -e 's/</\&lt;/g' \
+        -e 's/>/\&gt;/g' \
+        "$1"
+}
+
+# Generates an HTML version of the security reports
+generate_html_report() {
+
+    local HTML_REPORT="$REPORT_DIR/report.html"
+
+    mkdir -p "$REPORT_DIR"
+
+    {
+        echo '<!DOCTYPE html>'
+        echo '<html lang="en">'
+        echo '<head>'
+        echo '<meta charset="UTF-8">'
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        echo '<title>SelfScan Security Assessment</title>'
+
+        cat << 'EOF'
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    color: #222;
+    margin: 0;
+    padding: 30px;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+.section {
+    background: white;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+.footer {
+    margin-top: 30px;
+    font-size: 13px;
+    color: #666;
+}
+</style>
+EOF
+
+        echo '</head>'
+        echo '<body>'
+        echo '<div class="container">'
+
+        echo '<h1>SelfScan Security Assessment</h1>'
+        echo "<p>Target: $TARGET</p>"
+
+        echo '<div class="section">'
+        echo '<h2>Summary</h2>'
+        echo '<pre>'
+        html_escape_file "$SUMMARY_REPORT"
+        echo '</pre>'
+        echo '</div>'
+
+        echo '<div class="section">'
+        echo '<h2>Findings</h2>'
+        echo '<pre>'
+        html_escape_file "$FINDINGS_FILE"
+        echo '</pre>'
+        echo '</div>'
+
+        echo '<div class="section">'
+        echo '<h2>Scan Report</h2>'
+        echo '<pre>'
+        html_escape_file "$SCAN_REPORT"
+        echo '</pre>'
+        echo '</div>'
+
+        echo '<div class="footer">'
+        echo 'Generated by SelfScan Security Assessment Tool'
+        echo '</div>'
+
+        echo '</div>'
+        echo '</body>'
+        echo '</html>'
+
+    } > "$HTML_REPORT"
+
+    if [[ $? -ne 0 ]]; then
+        echo "[-] Failed to generate HTML report"
+        return 1
+    fi
+
+    echo "[+] HTML report generated: $HTML_REPORT"
+    return 0
+}
+
+# ==========================================================
 # 			Banner
 # ==========================================================
 
@@ -735,7 +981,11 @@ add_risk_explanations || exit 1
 
 generate_scan_report || exit 1
 generate_summary_report || exit 1
+# ==========================================================
+#                BONUS #2 - HTML Report
+# ==========================================================
 
+generate_html_report || exit 1 
 echo
 echo "=========================================================="
 echo "                 Scan Completed"
@@ -743,3 +993,5 @@ echo "=========================================================="
 echo "[+] Findings report: $FINDINGS_FILE"
 echo "[+] Scan report:     $SCAN_REPORT"
 echo "[+] Summary report:  $SUMMARY_REPORT"
+echo "[+] HTML report:     $REPORT_DIR/report.html"
+echo "[+] Execution log:   $LOG_FILE"
