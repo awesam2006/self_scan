@@ -94,7 +94,7 @@ run_dns_enum() {
 
     else
 
-        echo "[!] DNS recursion result inconclusive"
+        echo "[*] DNS recursion check: inconclusive"
 
     fi
 
@@ -114,7 +114,8 @@ run_dns_enum() {
 
     elif echo "$DNS_OUTPUT" | grep -q "Skipping 'dns-zone-transfer'"; then
 
-        echo "[!] DNS zone transfer could not be tested because the zone name was unavailable"
+        echo "[*] DNS zone transfer check: inconclusive"
+	echo "    Reason: zone name was unavailable"
 
     else
 
