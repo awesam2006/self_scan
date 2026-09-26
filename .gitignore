@@ -1,0 +1,13 @@
+# Generated reports
+reports/*.txt
+
+# Temporary files
+*.tmp
+*.log
+*.out
+
+# Editor / OS files
+*.swp
+*.swo
+*~
+.DS_Store
